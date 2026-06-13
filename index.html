@@ -1,0 +1,229 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+<meta charset="UTF-8">
+<title>3D Cube Battle Arena</title>
+
+<style>
+body { margin:0; overflow:hidden; background:#000; }
+
+#ui{
+position:absolute;
+top:10px;
+left:10px;
+color:white;
+font-family:Arial;
+background:rgba(0,0,0,0.6);
+padding:10px;
+z-index:10;
+}
+</style>
+</head>
+
+<body>
+
+<div id="ui">
+3D CUBE BATTLE<br>
+Enemies spawn behind cube
+</div>
+
+<script src="https://cdn.jsdelivr.net/npm/three@0.128.0/build/three.min.js"></script>
+
+<script>
+
+// ================= SCENE =================
+const scene = new THREE.Scene();
+scene.background = new THREE.Color(0x111111);
+
+const camera = new THREE.PerspectiveCamera(70, innerWidth/innerHeight, 0.1, 1000);
+
+const renderer = new THREE.WebGLRenderer({antialias:true});
+renderer.setSize(innerWidth, innerHeight);
+document.body.appendChild(renderer.domElement);
+
+// LIGHT
+scene.add(new THREE.AmbientLight(0xffffff,1));
+const light = new THREE.DirectionalLight(0xffffff,1.5);
+light.position.set(10,20,10);
+scene.add(light);
+
+// ================= ARENA (CUBE) =================
+const arenaSize = 30;
+
+const cube = new THREE.Mesh(
+new THREE.BoxGeometry(arenaSize, arenaSize, arenaSize),
+new THREE.MeshStandardMaterial({
+color:0x222222,
+wireframe:true,
+transparent:true,
+opacity:0.3
+})
+);
+
+scene.add(cube);
+
+// inside floor
+const floor = new THREE.Mesh(
+new THREE.PlaneGeometry(arenaSize, arenaSize),
+new THREE.MeshStandardMaterial({color:0x0a3d1a})
+);
+floor.rotation.x = -Math.PI/2;
+floor.position.y = -arenaSize/2;
+scene.add(floor);
+
+// ================= PLAYER =================
+const player = new THREE.Mesh(
+new THREE.BoxGeometry(1,2,1),
+new THREE.MeshStandardMaterial({color:0x00aaff})
+);
+
+player.position.set(0,-arenaSize/2+1,-5);
+scene.add(player);
+
+// ================= ENEMIES =================
+let enemies = [];
+let wave = 0;
+
+// spawn behind cube (NOT visible)
+function spawnEnemy(){
+
+wave++;
+
+const e = new THREE.Mesh(
+new THREE.BoxGeometry(1,2,1),
+new THREE.MeshStandardMaterial({color:0xff0000})
+);
+
+// behind cube
+e.position.set(
+(Math.random()-0.5)*10,
+-arenaSize/2+1,
+arenaSize/2 + 10
+);
+
+// HP scaling
+e.userData.hp = 100 + wave*50;
+
+scene.add(e);
+enemies.push(e);
+
+}
+
+// ================= MOVEMENT (PLAYER AUTO CENTER) =================
+let speed = 0.08;
+
+// ================= BULLETS =================
+let bullets = [];
+
+function shoot(enemy){
+
+const b = new THREE.Mesh(
+new THREE.SphereGeometry(0.2),
+new THREE.MeshStandardMaterial({color:0x00aaff})
+);
+
+b.position.copy(player.position);
+
+scene.add(b);
+
+bullets.push({
+mesh:b,
+target:enemy,
+speed:0.4
+});
+
+}
+
+// ================= LOOP =================
+function animate(){
+
+requestAnimationFrame(animate);
+
+// camera follow
+camera.position.lerp(
+new THREE.Vector3(0,10,25),
+0.05
+);
+
+camera.lookAt(0,0,0);
+
+// spawn enemies
+if(Math.random() < 0.02){
+spawnEnemy();
+}
+
+// ================= ENEMY MOVE =================
+for(let i=enemies.length-1;i>=0;i--){
+
+let e = enemies[i];
+
+// move into arena
+e.position.z -= 0.1;
+
+// reach player zone
+if(e.position.z < player.position.z){
+
+// auto damage player zone
+e.position.z = player.position.z;
+
+// simple attack loop
+e.userData.hp -= 1;
+
+}
+
+// auto shoot back logic
+if(Math.random()<0.01){
+shoot(e);
+}
+
+// dead
+if(e.userData.hp <= 0){
+scene.remove(e);
+enemies.splice(i,1);
+}
+}
+
+// ================= BULLETS =================
+for(let i=bullets.length-1;i>=0;i--){
+
+let b = bullets[i];
+
+if(!b.target){
+scene.remove(b.mesh);
+bullets.splice(i,1);
+continue;
+}
+
+// move to enemy
+b.mesh.position.lerp(b.target.position, b.speed);
+
+// hit
+if(b.mesh.position.distanceTo(b.target.position)<1){
+
+b.target.userData.hp -= 25;
+
+scene.remove(b.mesh);
+bullets.splice(i,1);
+
+}
+
+}
+
+// render
+renderer.render(scene,camera);
+
+}
+
+animate();
+
+// resize
+window.addEventListener("resize",()=>{
+camera.aspect = innerWidth/innerHeight;
+camera.updateProjectionMatrix();
+renderer.setSize(innerWidth,innerHeight);
+});
+
+</script>
+
+</body>
+</html>
